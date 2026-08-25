@@ -1,2 +1,3 @@
 # Notebook JSON (incl. embedded outputs) otherwise dominates GitHub's language stats
+# See https://github.com/github-linguist/linguist/blob/main/docs/overrides.md
 *.ipynb linguist-detectable=false
