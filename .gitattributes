@@ -1,0 +1,2 @@
+# Notebook JSON (incl. embedded outputs) otherwise dominates GitHub's language stats
+*.ipynb linguist-detectable=false
