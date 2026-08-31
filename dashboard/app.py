@@ -47,20 +47,20 @@ st.title("📊 Credit Scoring — Monitoring")
 st.caption("Prêt à Dépenser · prod observability + data drift")
 
 with st.sidebar:
-    st.header("Filtres")
+    st.header("Filters")
     hours = st.slider(
-        "Fenêtre (heures)",
+        "Window (hours)",
         min_value=1,
         max_value=168,
-        value=24,
-        help="Plage temporelle pour toutes les métriques. 24h = 1 jour, 168h = 7 jours.",
+        value=168,
+        help="Time range for every metric. 24h = 1 day, 168h = 7 days.",
     )
     st.markdown("---")
     st.markdown(
         "**Sources**\n\n"
-        "- Logs : Supabase `predictions_log`\n"
-        "- Drift : `static/drift_report.html`\n"
-        "- Régénérer le rapport : `uv run python scripts/generate_drift_report.py`"
+        "- Logs: Supabase `predictions_log`\n"
+        "- Drift: `static/drift_report.html`\n"
+        "- Regenerate the report: `uv run python scripts/generate_drift_report.py`"
     )
 
 
@@ -82,36 +82,36 @@ except Exception:
 
 if not DB_AVAILABLE:
     st.warning(
-        "**Mode dégradé — base de logs injoignable.** L'instance de démonstration "
-        "est probablement en veille. Les onglets *Data Drift Report* et *Data Drift "
-        "avancé* restent consultables : ils s'appuient sur des artefacts figés, "
-        "versionnés avec l'application."
+        "**Degraded mode — log database unreachable.** The demo instance is most "
+        "likely asleep. The *Data Drift Report* and *Advanced Data Drift* tabs "
+        "remain available: they read frozen artefacts versioned with the "
+        "application."
     )
 
 tab_ops, tab_drift, tab_business, tab_advanced = st.tabs(
-    ["⚙️ Opérationnel", "🌊 Data Drift Report", "💼 Business", "🧠 Data Drift avancé"]
+    ["⚙️ Operational", "🌊 Data Drift Report", "💼 Business", "🧠 Advanced Data Drift"]
 )
 
 
 # ------------------------------------------------------------------ Drift --
 with tab_drift:
-    st.subheader("Rapport Data Drift (Evidently)")
+    st.subheader("Data Drift Report (Evidently)")
     if DRIFT_REPORT_PATH.exists():
-        st.caption(f"Source : {DRIFT_REPORT_PATH.name}")
+        st.caption(f"Source: {DRIFT_REPORT_PATH.name}")
         html = DRIFT_REPORT_PATH.read_text(encoding="utf-8")
         st.components.v1.html(html, height=900, scrolling=True)
     else:
         st.info(
-            "Aucun rapport Evidently disponible. Génère-le avec :\n\n"
+            "No Evidently report available. Generate it with:\n\n"
             "`uv run python scripts/generate_drift_report.py --days 30`\n\n"
-            "Puis redéploie le Space ou copie le HTML dans `dashboard/static/`."
+            "Then redeploy the Space or copy the HTML into `dashboard/static/`."
         )
 
 
 # --------------------------------------------------------------- Business --
 with tab_business:
     if _recent_df.empty:
-        st.warning("Pas de données pour la période.")
+        st.warning("No data for this window.")
     else:
         ok = _ok_df
         c1, c2 = st.columns(2)
@@ -120,7 +120,10 @@ with tab_business:
             decision_counts.columns = ["decision", "count"]
             st.plotly_chart(
                 px.pie(
-                    decision_counts, names="decision", values="count", title="Décisions"
+                    decision_counts,
+                    names="decision",
+                    values="count",
+                    title="Decisions",
                 ),
                 use_container_width=True,
             )
@@ -128,19 +131,19 @@ with tab_business:
             known = (
                 ok["client_known"]
                 .value_counts()
-                .rename({True: "Connu", False: "Inconnu"})
+                .rename({True: "Known", False: "Unknown"})
             )
             st.plotly_chart(
                 px.pie(
                     pd.DataFrame({"type": known.index, "count": known.values}),
                     names="type",
                     values="count",
-                    title="Clients connus vs inconnus",
+                    title="Known vs unknown clients",
                 ),
                 use_container_width=True,
             )
 
-        st.subheader("Derniers appels")
+        st.subheader("Latest calls")
         st.dataframe(
             ok[
                 [
@@ -161,9 +164,9 @@ with tab_business:
 # --------------------------------------------------------- Advanced KPIs --
 with tab_advanced:
     st.caption(
-        "Indicateurs avancés au-delà du drift par feature : drift de la sortie "
-        "modèle, suivi des features critiques, et score de drift pondéré par "
-        "importance SHAP."
+        "Advanced indicators beyond per-feature drift: model output drift, "
+        "critical-feature tracking, and a drift score weighted by SHAP "
+        "importance."
     )
 
     proba_ref = load_proba_reference()
@@ -172,11 +175,11 @@ with tab_advanced:
     drift_results = parse_drift_results(drift_json)
 
     # ---------------------------------------------------- Output drift --
-    st.subheader("1. Output drift — distribution de probability_default")
+    st.subheader("1. Output drift — probability_default distribution")
     if proba_ref is None:
         st.info(
-            "`dashboard/static/proba_reference.json` introuvable. "
-            "Génère-le avec `uv run python scripts/build_monitoring_artefacts.py`."
+            "`dashboard/static/proba_reference.json` not found. "
+            "Generate it with `uv run python scripts/build_monitoring_artefacts.py`."
         )
     else:
         try:
@@ -184,13 +187,13 @@ with tab_advanced:
         except Exception:
             logger.exception("fetch_proba_distribution failed")
             st.info(
-                "Distribution de production indisponible (base de logs injoignable). "
-                "La référence figée reste affichée ci-dessous."
+                "Production distribution unavailable (log database unreachable). "
+                "The frozen reference is still shown below."
             )
             current_proba = []
 
         if not current_proba:
-            st.warning("Pas de prédiction logguée pour calculer la distribution prod.")
+            st.warning("No logged prediction to compute the production distribution.")
         else:
             ref_values = np.array(proba_ref.get("values", []))
             cur_values = np.array(current_proba)
@@ -212,7 +215,7 @@ with tab_advanced:
             c3.metric("K-S p-value", f"{ks_p:.2e}")
             c4.metric(
                 "Output drift",
-                "✓ détecté" if detected else "✗ stable",
+                "✓ detected" if detected else "✗ stable",
                 delta_color="inverse" if detected else "normal",
             )
 
@@ -242,29 +245,29 @@ with tab_advanced:
                 barmode="overlay",
                 xaxis_title="probability_default",
                 yaxis_title="density",
-                title="Distribution de la proba de défaut — reference vs current",
+                title="Default probability distribution — reference vs current",
                 height=350,
             )
             st.plotly_chart(fig, use_container_width=True)
 
             st.caption(
-                "Le K-S test compare les deux échantillons sur leur forme de "
-                "distribution. Un drift de la sortie modèle est l'indicateur le "
-                "plus direct d'un comportement modèle altéré en prod — il "
-                "agrège l'effet de tous les drifts d'inputs simultanément."
+                "The K-S test compares the shape of the two sample "
+                "distributions. Model output drift is the most direct signal of "
+                "altered model behaviour in production — it aggregates the "
+                "effect of every input drift at once."
             )
 
     # ------------------------------------------------- Critical features --
-    st.subheader("2. Features critiques (top 10 SHAP)")
+    st.subheader("2. Critical features (top 10 SHAP)")
     if importance is None:
         st.info(
-            "`dashboard/static/feature_importance.json` introuvable. "
-            "Génère-le avec `uv run python scripts/build_monitoring_artefacts.py`."
+            "`dashboard/static/feature_importance.json` not found. "
+            "Generate it with `uv run python scripts/build_monitoring_artefacts.py`."
         )
     elif not drift_results:
         st.info(
-            "`dashboard/static/drift_report.json` introuvable. "
-            "Régénère le drift report avec `uv run python scripts/generate_drift_report.py`."
+            "`dashboard/static/drift_report.json` not found. "
+            "Regenerate the drift report with `uv run python scripts/generate_drift_report.py`."
         )
     else:
         top_n = 10
@@ -281,7 +284,7 @@ with tab_advanced:
                     "Rank": entry["rank"],
                     "Feature": feat,
                     "SHAP importance": round(imp, 4),
-                    "Drift": "🔴 Détecté"
+                    "Drift": "🔴 Detected"
                     if detected
                     else ("🟢 Stable" if detected is False else "—"),
                     "Drift score": (f"{score:.4f}" if score is not None else "—"),
@@ -290,28 +293,28 @@ with tab_advanced:
             )
         df_critical = pd.DataFrame(rows)
 
-        n_drifted = sum(1 for r in rows if "Détecté" in r["Drift"])
+        n_drifted = sum(1 for r in rows if "Detected" in r["Drift"])
         c1, c2 = st.columns([1, 3])
         c1.metric(
-            f"Drifted parmi top {top_n}",
+            f"Drifted in top {top_n}",
             f"{n_drifted}/{top_n}",
             delta_color="inverse",
         )
         c2.caption(
-            f"Méthode : {importance['method']} sur {importance['sample_size']} "
-            "lignes de reference. Le nombre de features critiques qui ont drifté "
-            "est l'indicateur le plus actionnable — un drift sur un top-feature "
-            "demande un retraining prioritaire."
+            f"Method: {importance['method']} over {importance['sample_size']} "
+            "reference rows. How many critical features have drifted is the most "
+            "actionable indicator — drift on a top feature calls for retraining "
+            "as a priority."
         )
 
         st.dataframe(df_critical, use_container_width=True, hide_index=True)
 
     # -------------------------------------------------- Weighted drift --
-    st.subheader("3. Score de drift pondéré par importance")
+    st.subheader("3. Importance-weighted drift score")
     if importance is None or not drift_results:
         st.info(
-            "Indicateur indisponible tant que `feature_importance.json` et "
-            "`drift_report.json` ne sont pas tous les deux présents."
+            "Indicator unavailable until both `feature_importance.json` and "
+            "`drift_report.json` are present."
         )
     else:
         total_importance = 0.0
@@ -335,27 +338,26 @@ with tab_advanced:
 
         c1, c2, c3 = st.columns(3)
         c1.metric(
-            "Drift pondéré",
+            "Weighted drift",
             f"{weighted_ratio:.1%}",
-            delta=f"seuil {threshold:.0%}",
+            delta=f"threshold {threshold:.0%}",
             delta_color="inverse" if weighted_ratio >= threshold else "normal",
         )
         c2.metric(
-            "Importance couverte",
+            "Importance covered",
             f"{n_features_seen} / {len(importance['top'])} features",
         )
         c3.metric(
             "Verdict",
-            "🔴 Alerte" if weighted_ratio >= threshold else "🟢 OK",
+            "🔴 Alert" if weighted_ratio >= threshold else "🟢 OK",
         )
 
         st.caption(
-            "**Formule** : Σ(importance × drift_detected) / Σ(importance) sur les "
-            f"top-{len(importance['top'])} features SHAP. Pondère le verdict "
-            "binaire d'Evidently par l'impact réel de chaque feature sur le "
-            "modèle. Seuil : 30% de l'importance totale qui drift → alerte. "
-            "Indicateur plus fin que le ratio brut affiché par Evidently dans "
-            "l'onglet Data Drift."
+            "**Formula**: Σ(importance × drift_detected) / Σ(importance) over the "
+            f"top-{len(importance['top'])} SHAP features. Weights Evidently's "
+            "binary verdict by how much each feature actually drives the model. "
+            "Threshold: 30% of total importance drifting → alert. A finer signal "
+            "than the raw ratio Evidently shows in the Data Drift tab."
         )
 
 
@@ -369,13 +371,13 @@ with tab_ops:
     except Exception:
         logger.exception("fetch_summary failed")
         st.info(
-            "Métriques opérationnelles indisponibles — voir le bandeau en haut "
-            "de page. Les onglets de drift restent consultables."
+            "Operational metrics unavailable — see the banner at the top of the "
+            "page. The drift tabs remain available."
         )
         st.stop()
 
     if not summary["total"]:
-        st.warning(f"Aucune prédiction enregistrée sur les {hours} dernières heures.")
+        st.warning(f"No prediction logged over the last {hours} hours.")
         st.stop()
 
     # Headline: total server-side wall-clock = handler + DB log. The detail
@@ -388,9 +390,9 @@ with tab_ops:
     )
 
     cols = st.columns(6)
-    cols[0].metric("Total requêtes", f"{summary['total']:,}")
+    cols[0].metric("Total requests", f"{summary['total']:,}")
     cols[1].metric(
-        "Erreurs",
+        "Errors",
         f"{summary['errors']:,}",
         delta=f"{(summary['errors'] / summary['total']) * 100:.1f} %",
         delta_color="inverse",
@@ -398,30 +400,30 @@ with tab_ops:
     cols[2].metric(
         "Total p50",
         f"{_total_p50_top} ms",
-        help="Wall-clock serveur complet = handler (`latency_ms`) + DB log (`db_log_ms`). Détail dans la section *Décomposition* plus bas.",
+        help="Full server wall-clock = handler (`latency_ms`) + DB log (`db_log_ms`). Details in the *Latency breakdown* section below.",
     )
     cols[3].metric(
         "Total p95",
         f"{_total_p95_top} ms",
-        help="Wall-clock serveur p95 = handler p95 + DB log p95.",
+        help="Server wall-clock p95 = handler p95 + DB log p95.",
     )
     cols[4].metric(
         "% REFUSED",
         f"{(summary['refused'] / max(summary['total'], 1)) * 100:.1f} %",
     )
     cols[5].metric(
-        "% Nouveaux clients",
+        "% New clients",
         f"{(summary['unknowns'] / max(summary['total'], 1)) * 100:.1f} %",
-        help="Part de clients sans entrée dans le feature store (no_history_template).",
+        help="Share of clients with no entry in the feature store (no_history_template).",
     )
 
-    st.subheader("Volume & latence par heure")
+    st.subheader("Volume & latency per hour")
     hourly = fetch_volume_by_hour(hours)
     if not hourly.empty:
         c1, c2 = st.columns(2)
         with c1:
             st.plotly_chart(
-                px.bar(hourly, x="hour", y="total", title="Requêtes / heure"),
+                px.bar(hourly, x="hour", y="total", title="Requests / hour"),
                 use_container_width=True,
             )
         with c2:
@@ -430,11 +432,11 @@ with tab_ops:
                 x="hour",
                 y="value",
                 color="variable",
-                title="Latence (ms)",
+                title="Latency (ms)",
             )
             st.plotly_chart(fig, use_container_width=True)
 
-    st.subheader("Décomposition de la latence")
+    st.subheader("Latency breakdown")
 
     def _ms(v) -> int:
         """Format helper — round to int ms, default 0 when SQL returns NULL."""
@@ -456,32 +458,33 @@ with tab_ops:
     total_p95 = handler_p95 + db_log_p95
 
     st.caption(
-        f"**Latence client perçue ≈ handler ({handler_p50} ms p50).** "
-        f"Le **DB log** ({db_log_p50} ms p50) s'exécute en `BackgroundTask` "
-        "après l'envoi de la réponse — il n'impacte plus le client (étape 4).  \n"
-        "Le **handler** (`latency_ms`) couvre l'assembly + l'inférence + la construction "
-        "de la réponse. Le **DB log** (`db_log_ms`) est mesuré séparément dans `api/logger.py` "
-        "autour de l'INSERT Supabase, et reste affiché comme métrique de santé serveur. "
-        "Le **plumbing Δ** = `latency_ms - assembly - inference` isole le résidu Python "
-        "entre les sous-mesures (inits de variables, return statement, entrée dans le "
-        "`finally`) — typiquement < 1 ms."
+        f"**Client-perceived latency ≈ handler ({handler_p50} ms p50).** "
+        f"The **DB log** ({db_log_p50} ms p50) runs in a `BackgroundTask` after "
+        "the response is sent — it no longer affects the client (step 4).  \n"
+        "The **handler** (`latency_ms`) covers assembly + inference + response "
+        "building. The **DB log** (`db_log_ms`) is measured separately in "
+        "`api/logger.py` around the Supabase INSERT, and is still shown as a "
+        "server health metric. The **plumbing Δ** = `latency_ms - assembly - "
+        "inference` isolates the Python residual between sub-measurements "
+        "(variable init, return statement, entering the `finally`) — typically "
+        "< 1 ms."
     )
 
     cols_perf = st.columns(7)
     cols_perf[0].metric(
         "Total p50 / p95",
         f"{total_p50} / {total_p95} ms",
-        help="Wall-clock serveur complet = `latency_ms` (handler) + `db_log_ms` (INSERT). C'est le temps réel passé côté serveur sur une requête.",
+        help="Full server wall-clock = `latency_ms` (handler) + `db_log_ms` (INSERT). The real time spent server-side on a request.",
     )
     cols_perf[1].metric(
         "Handler p50 / p95",
         f"{handler_p50} / {handler_p95} ms",
-        help="`latency_ms` = assembly + inference + plumbing. **N'inclut pas** le DB log.",
+        help="`latency_ms` = assembly + inference + plumbing. **Excludes** the DB log.",
     )
     cols_perf[2].metric(
         "Feature assembly p50 / p95",
         f"{asm_p50} / {asm_p95} ms",
-        help="Lookup feature store + transforms + ratios + reindex.",
+        help="Feature store lookup + transforms + ratios + reindex.",
     )
     cols_perf[3].metric(
         "Inference wall p50 / p95",
@@ -491,17 +494,17 @@ with tab_ops:
     cols_perf[4].metric(
         "Inference CPU p50 / p95",
         f"{inf_cpu_p50} / {inf_cpu_p95} ms",
-        help="CPU time consommé pendant l'inférence (peut lire 0 sur paths très rapides — résolution de `time.process_time`).",
+        help="CPU time consumed during inference (can read 0 on very fast paths — `time.process_time` resolution).",
     )
     cols_perf[5].metric(
         "DB log p50 / p95",
         f"{db_log_p50} / {db_log_p95} ms",
-        help="INSERT Supabase mesuré autour de `conn.execute(insert(...))` dans `api/logger.py`. Domine généralement l'overhead total.",
+        help="Supabase INSERT measured around `conn.execute(insert(...))` in `api/logger.py`. Usually dominates the total overhead.",
     )
     cols_perf[6].metric(
         "Plumbing Δ p50 / p95",
         f"{plumb_p50} / {plumb_p95} ms",
-        help="`latency_ms - feature_assembly_ms - inference_ms`. Résidu Python entre les sous-mesures (typiquement < 1 ms).",
+        help="`latency_ms - feature_assembly_ms - inference_ms`. Python residual between sub-measurements (typically < 1 ms).",
     )
 
     breakdown = fetch_latency_breakdown(hours)
@@ -523,33 +526,33 @@ with tab_ops:
                 "plumbing_p50",
                 "db_log_p50",
             ],
-            var_name="composant",
+            var_name="component",
             value_name="ms",
         )
-        long_df["composant"] = long_df["composant"].map(
+        long_df["component"] = long_df["component"].map(
             {
                 "feature_assembly_p50": "Feature assembly",
                 "inference_p50": "Model inference",
-                "plumbing_p50": "Plumbing Python (résidu)",
-                "db_log_p50": "DB log (INSERT Supabase)",
+                "plumbing_p50": "Python plumbing (residual)",
+                "db_log_p50": "DB log (Supabase INSERT)",
             }
         )
         fig_breakdown = px.area(
             long_df,
             x="hour",
             y="ms",
-            color="composant",
-            title="Décomposition p50 par heure (stacked = wall-clock serveur)",
+            color="component",
+            title="p50 breakdown per hour (stacked = server wall-clock)",
         )
-        fig_breakdown.update_layout(yaxis_title="latence p50 (ms)")
+        fig_breakdown.update_layout(yaxis_title="p50 latency (ms)")
         st.plotly_chart(fig_breakdown, use_container_width=True)
     else:
         st.info(
-            "Pas encore de données instrumentées sur la fenêtre. "
-            "Lance du trafic via `scripts/seed_traffic.py` après le deploy de l'API étape 4."
+            "No instrumented data on this window yet. "
+            "Send traffic with `scripts/seed_traffic.py` after deploying the step-4 API."
         )
 
-    st.subheader("Distribution des probabilités")
+    st.subheader("Probability distribution")
     if not _ok_df.empty:
         st.plotly_chart(
             px.histogram(
@@ -557,7 +560,7 @@ with tab_ops:
                 x="probability_default",
                 nbins=40,
                 color="decision",
-                title="probability_default — split par décision",
+                title="probability_default — split by decision",
             ),
             use_container_width=True,
         )

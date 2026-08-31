@@ -1,13 +1,3 @@
----
-title: OC P8 Credit Scoring API
-emoji: 💳
-colorFrom: blue
-colorTo: green
-sdk: docker
-app_port: 7860
-pinned: false
----
-
 [![Python][python-badge]][python-url]
 [![FastAPI][fastapi-badge]][fastapi-url]
 [![CI][ci-badge]][ci-url]
@@ -208,10 +198,10 @@ and a Streamlit dashboard turns that table into production observability.
 
 | Tab | What it answers |
 |-----|-----------------|
-| **Opérationnel** | Traffic volume, error rate, latency p50/p95 by hour, `probability_default` histogram split by decision |
+| **Operational** | Traffic volume, error rate, latency p50/p95 by hour, `probability_default` histogram split by decision |
 | **Data Drift Report** | Embedded Evidently report. Watch *"Share of Drifted Features"* — above ~30 % typically warrants retraining or a threshold revision |
 | **Business** | GRANTED / REFUSED ratio, known / unknown client mix, last 50 raw calls |
-| **Data Drift avancé** | Per-feature drill-down: which columns drifted, which test was used, current vs. reference distribution |
+| **Advanced Data Drift** | Per-feature drill-down: which columns drifted, which test was used, current vs. reference distribution |
 
 The drift tab reads a static `dashboard/static/drift_report.html` committed to the
 repo, so it renders even when the database is unreachable. The other three query
@@ -240,7 +230,7 @@ top_shap (jsonb, nullable) | ground_truth (nullable)
 ```
 
 Per-step timings (`feature_assembly_ms`, `inference_ms`, `inference_cpu_ms`,
-`plumbing_ms`) are persisted on every row so the *Opérationnel* tab can break
+`plumbing_ms`) are persisted on every row so the *Operational* tab can break
 down latency by sub-step.
 
 ### Initial setup (once)
@@ -413,6 +403,11 @@ and caches. Hugging Face rebuilds the Docker container automatically once the
 Space repo is updated. The dashboard has its own deploy path
 (`scripts/deploy_dashboard.py`) precisely because it is excluded here.
 
+This README is excluded too. A Space is configured through the YAML
+front-matter of its `README.md`, which GitHub renders as a metadata table — so
+the card lives in `.hf/README.md` and a follow-up `upload_file()` pushes it to
+the Space as `README.md`. Editing the card means editing `.hf/README.md`.
+
 ### Required secrets
 
 Configure in **GitHub → Settings → Secrets and variables → Actions**:
@@ -533,7 +528,7 @@ api/                      # Runtime — bundled in Docker image
   settings.py             # Paths resolved from env vars with defaults
 
 dashboard/                # Streamlit monitoring app — deployed to its own Space
-  app.py                  # Four tabs: Opérationnel, Drift, Business, Drift avancé
+  app.py                  # Four tabs: Operational, Drift, Business, Advanced Drift
   static/drift_report.html  # Committed Evidently report (renders without a DB)
 
 examples/                 # Ready-to-send /predict payloads
@@ -574,6 +569,8 @@ models/                   # model.joblib + JSON metadata (committed to git)
 data/                     # features_store.parquet (gitignored — fetched from HF Dataset at runtime)
 .github/workflows/
   ci.yml                  # CI_CD — build_and_test + deploy
+.hf/
+  README.md               # HF Space card — pushed as the Space's README.md by CI
 Dockerfile
 pyproject.toml
 ```

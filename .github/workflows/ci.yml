@@ -90,9 +90,19 @@ jobs:
               repo_id="KLEB38/OC_P8",
               repo_type="space",
               ignore_patterns=[
-                  ".git", ".github", ".venv", ".claude",
+                  ".git", ".github", ".venv", ".claude", ".hf/",
                   "__pycache__", "*.pyc",
                   "data/", "dashboard/", "database/.env",
+                  # The repo README is documentation, not a Space card: its
+                  # YAML front-matter would render as a table on GitHub.
+                  # .hf/README.md below carries the card instead.
+                  "README.md",
               ],
+          )
+          api.upload_file(
+              path_or_fileobj=".hf/README.md",
+              path_in_repo="README.md",
+              repo_id="KLEB38/OC_P8",
+              repo_type="space",
           )
           EOF
