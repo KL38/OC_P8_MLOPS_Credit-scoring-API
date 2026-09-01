@@ -403,10 +403,16 @@ and caches. Hugging Face rebuilds the Docker container automatically once the
 Space repo is updated. The dashboard has its own deploy path
 (`scripts/deploy_dashboard.py`) precisely because it is excluded here.
 
-This README is excluded too. A Space is configured through the YAML
-front-matter of its `README.md`, which GitHub renders as a metadata table — so
-the card lives in `.hf/README.md` and a follow-up `upload_file()` pushes it to
-the Space as `README.md`. Editing the card means editing `.hf/README.md`.
+Two root files are excluded because GitHub and Hugging Face want different
+content under the same name — both live in `.hf/` and are pushed by their own
+`upload_file()` call:
+
+| File | Why it cannot be shared |
+|------|-------------------------|
+| `README.md` | A Space is configured through its README's YAML front-matter, which GitHub renders as a metadata table. `.hf/README.md` holds the card, this file holds the documentation. |
+| `.gitattributes` | The root one is a GitHub linguist config. Pushing it to the Space wipes the LFS tracking rules, and `models/model.onnx` is then checked out as a 134-byte pointer — the API dies at startup on `INVALID_PROTOBUF`. `.hf/.gitattributes` carries the LFS rules and is pushed **before** the folder upload. |
+
+Editing the Space card or its LFS rules means editing the files in `.hf/`.
 
 ### Required secrets
 
@@ -571,6 +577,7 @@ data/                     # features_store.parquet (gitignored — fetched from 
   ci.yml                  # CI_CD — build_and_test + deploy
 .hf/
   README.md               # HF Space card — pushed as the Space's README.md by CI
+  .gitattributes          # LFS rules for the Space — pushed as its .gitattributes
 Dockerfile
 pyproject.toml
 ```

@@ -1,0 +1,17 @@
+# LFS rules for the HF Space KLEB38/OC_P8 — NOT for GitHub.
+#
+# Hugging Face stores every file above 10 MB as an LFS object regardless of
+# these rules, but git-lfs only runs its smudge filter at checkout for paths
+# matched here. Without them the Space's Docker build copies the 134-byte
+# pointer text instead of the binary, and the API dies at startup with
+# "INVALID_PROTOBUF: Load model from /app/models/model.onnx failed".
+#
+# The repo's own root .gitattributes is a GitHub linguist config and is
+# excluded from the Space upload — see .github/workflows/ci.yml.
+*.parquet filter=lfs diff=lfs merge=lfs -text
+*.joblib filter=lfs diff=lfs merge=lfs -text
+*.pkl filter=lfs diff=lfs merge=lfs -text
+*.pt filter=lfs diff=lfs merge=lfs -text
+*.bin filter=lfs diff=lfs merge=lfs -text
+models/model.onnx filter=lfs diff=lfs merge=lfs -text
+docs/monitoring.gif filter=lfs diff=lfs merge=lfs -text

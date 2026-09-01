@@ -470,7 +470,26 @@ with tab_ops:
         "< 1 ms."
     )
 
-    cols_perf = st.columns(7)
+    # Seven metrics sharing a 1/7 column each do not fit Streamlit's default
+    # 2.25rem metric value: "3066 / 3066 ms" renders as "3066 / 3066…" (the
+    # Metric component truncates rather than wraps). The token is not exposed
+    # in config.toml, so the font size is overridden here — scoped to this row
+    # through the container key, to leave the KPI row above at full size.
+    st.html(
+        """
+        <style>
+          .st-key-latency_perf_row [data-testid="stMetricValue"] {
+            font-size: 1.7rem;
+          }
+        </style>
+        """
+    )
+    # The columns are created inside the keyed container so the CSS above
+    # matches them; the metrics below stay attached to those columns wherever
+    # they are declared from.
+    with st.container(key="latency_perf_row"):
+        cols_perf = st.columns(7)
+
     cols_perf[0].metric(
         "Total p50 / p95",
         f"{total_p50} / {total_p95} ms",

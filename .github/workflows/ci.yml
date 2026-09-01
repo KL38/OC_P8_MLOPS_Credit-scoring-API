@@ -85,6 +85,18 @@ jobs:
           import os
           from huggingface_hub import HfApi
           api = HfApi(token=os.environ["HF_TOKEN"])
+
+          # Pushed FIRST: the Space's .gitattributes must declare the LFS rules
+          # before any large artefact is committed. Without them git-lfs skips
+          # the smudge filter at checkout and the Docker build copies the
+          # 134-byte pointer text as models/model.onnx -> the API dies at
+          # startup on INVALID_PROTOBUF.
+          api.upload_file(
+              path_or_fileobj=".hf/.gitattributes",
+              path_in_repo=".gitattributes",
+              repo_id="KLEB38/OC_P8",
+              repo_type="space",
+          )
           api.upload_folder(
               folder_path=".",
               repo_id="KLEB38/OC_P8",
@@ -97,6 +109,9 @@ jobs:
                   # YAML front-matter would render as a table on GitHub.
                   # .hf/README.md below carries the card instead.
                   "README.md",
+                  # The repo .gitattributes is a GitHub linguist config with no
+                  # LFS rule. Uploading it wipes the Space's LFS tracking.
+                  ".gitattributes",
               ],
           )
           api.upload_file(
