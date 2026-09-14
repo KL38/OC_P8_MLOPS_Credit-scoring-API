@@ -1,0 +1,46 @@
+name: Keep HF Space Alive
+
+on:
+  schedule:
+    - cron: "0 3 * * *"     # tous les jours à 6h00 UTC
+  workflow_dispatch:
+
+jobs:
+  keep-alive:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Check space status and restart if needed
+        id: check
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: |
+          STATUS=$(curl -s -H "Authorization: Bearer $HF_TOKEN" \
+            https://huggingface.co/api/spaces/KLEB38/OC_P8 | jq -r '.runtime.stage')
+          echo "Statut actuel: $STATUS"
+
+          ACTION="none"
+          if [ "$STATUS" != "RUNNING" ]; then
+            echo "Space non actif, restart en cours..."
+            curl -X POST -H "Authorization: Bearer $HF_TOKEN" \
+              https://huggingface.co/api/spaces/KLEB38/OC_P8/restart
+            ACTION="restarted"
+          fi
+
+          echo "status=$STATUS" >> "$GITHUB_OUTPUT"
+          echo "action=$ACTION" >> "$GITHUB_OUTPUT"
+
+      - name: Append to log
+        run: |
+          mkdir -p logs
+          echo "$(date -u +"%Y-%m-%d %H:%M:%S UTC"), status=${{ steps.check.outputs.status }}, action=${{ steps.check.outputs.action }}" >> logs/keepalive.log
+
+      - name: Commit log
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add logs/keepalive.log
+          git diff --cached --quiet && echo "Rien à commit" || git commit -m "keepalive log $(date -u +%Y-%m-%d)"
+          git push

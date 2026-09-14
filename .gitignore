@@ -83,8 +83,6 @@ dashboard/static/drift_report.json
 # them with:  uv run python scripts/build_feature_store.py
 
 # Project-local logs / scratch
-logs/
-*.log
 scratch/
 tmp/
 
