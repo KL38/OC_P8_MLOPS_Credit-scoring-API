@@ -60,6 +60,11 @@ The API is deployed and live — nothing to install, nothing to clone.
 | Model info | [/model/info](https://kleb38-oc-p8.hf.space/model/info) |
 | Monitoring dashboard | [KLEB38/OC_P8_monitoring](https://huggingface.co/spaces/KLEB38/OC_P8_monitoring) |
 
+**No terminal at all:** open the monitoring dashboard and press one of the
+*Try the API* buttons in the sidebar (low-risk profile, high-risk profile or
+random client). The call is scored by the live API, logged to Neon, and shows
+up in the dashboard tabs within seconds. See [The sidebar](#the-sidebar).
+
 Two ready-to-send payloads sit in [`examples/`](examples/) — 121 fields each,
 valid against `api/schemas.py`:
 
@@ -87,9 +92,11 @@ curl -X POST https://kleb38-oc-p8.hf.space/predict \
  "threshold":0.33,"model_version":"2","client_known":true}
 ```
 
-> **Cold start.** The Space sleeps after a period of inactivity. The first
-> request may take ~30 s while the container wakes up; subsequent calls are in
-> the low tens of milliseconds.
+> **Cold start.** On the free tier the Space sleeps after 48 h without traffic.
+> A daily [keep-alive workflow](#keep-alive) restarts it when needed, and the
+> dashboard sidebar has a *Wake up the API* button anyone can press. A cold boot
+> takes about a minute; warm calls are in the low tens of milliseconds
+> server-side.
 
 Three further profiles — a medium-risk applicant and two *unknown* clients that
 exercise the `no_history_template` path — are documented in
@@ -207,6 +214,22 @@ The drift tab reads a static `dashboard/static/drift_report.html` committed to t
 repo, so it renders even when the database is unreachable. The other three query
 Neon live.
 
+### The sidebar
+
+| Control | What it does |
+|---------|--------------|
+| **Window** | Time range for every metric: 24 h, 7, 30 or 90 days, or *All time* (default, since a demo receives sparse traffic) |
+| **Scoring API** | Live stage of the API Space. The *Wake up the API* button only appears when the Space is asleep or stopped, so a visitor can never bounce a running API |
+| **Try the API** | Sends a real `/predict` call (low-risk profile, high-risk profile or random client) and shows the decision, probability and round trip. The row is logged like any other request; one call per 10 s per session |
+
+Payloads come from `dashboard/static/demo_profiles.json`, built by
+`scripts/build_demo_profiles.py`: the two curated profiles from `examples/` plus
+200 `SK_ID_CURR` present in the feature store. The random client picks one of
+those known ids (so the credit history aggregates are real) and re-draws the main
+drivers of a curated profile (external scores, income, credit, annuity, age,
+seniority, children, bureau requests) within the bounds of `api/schemas.py`.
+No raw `application_train` row is published.
+
 ### Stack
 
 | Component | Purpose | Location |
@@ -268,6 +291,8 @@ uv run python scripts/deploy_dashboard.py
 
 `DATABASE_URL` must be set as a Space secret on `KLEB38/OC_P8_monitoring`.
 Use the read-only role (`SELECT` on `predictions_log` only), not the owner role.
+`HF_RESTART_TOKEN` (optional Space secret) enables the *Wake up the API* button:
+a fine-grained token with write access to the `KLEB38/OC_P8` Space only.
 
 ---
 
@@ -415,13 +440,22 @@ content under the same name — both live in `.hf/` and are pushed by their own
 
 Editing the Space card or its LFS rules means editing the files in `.hf/`.
 
+### Keep-alive
+
+[`.github/workflows/keep_alive.yml`](.github/workflows/keep_alive.yml) runs every
+day at 03:00 UTC (and on manual dispatch). It reads the API Space stage from the
+Hugging Face API, calls the restart endpoint when the Space is not `RUNNING`,
+then appends one line to `logs/keepalive.log` and commits it. The workflow
+declares `permissions: contents: write`, without which the default read-only
+`GITHUB_TOKEN` cannot push that log commit. It uses the `HF_TOKEN` secret.
+
 ### Required secrets
 
 Configure in **GitHub → Settings → Secrets and variables → Actions**:
 
 | Secret | Used by | Description |
 |--------|---------|-------------|
-| `HF_TOKEN` | `deploy` | Hugging Face write token ([settings/tokens](https://huggingface.co/settings/tokens)), used by `upload_folder()` |
+| `HF_TOKEN` | `deploy`, keep-alive | Hugging Face write token ([settings/tokens](https://huggingface.co/settings/tokens)), used by `upload_folder()` |
 | `TEST_DATABASE_URL` | `build_and_test` | Neon connection string for the **`predictions_log_test`** table |
 | `DATABASE_URL` | Dashboard Space runtime | Read-only Neon string, set as a **Space secret** on `KLEB38/OC_P8_monitoring` — not in GitHub |
 | `HF_RESTART_TOKEN` | Dashboard Space runtime | Optional **Space secret** on `KLEB38/OC_P8_monitoring` for the public *Wake up the API* button. Fine-grained token, write access to `KLEB38/OC_P8` only |
@@ -536,8 +570,11 @@ api/                      # Runtime — bundled in Docker image
   settings.py             # Paths resolved from env vars with defaults
 
 dashboard/                # Streamlit monitoring app — deployed to its own Space
-  app.py                  # Four tabs: Operational, Drift, Business, Advanced Drift
+  app.py                  # Four tabs: Operational, Drift, Business, Advanced Drift + sidebar
+  queries.py              # Read-only SQL helpers (time window, KPIs, latency breakdown)
+  demo.py                 # "Try the API" payloads and /predict call
   static/drift_report.html  # Committed Evidently report (renders without a DB)
+  static/demo_profiles.json # Curated profiles + known SK_ID_CURR for the demo buttons
 
 examples/                 # Ready-to-send /predict payloads
   low_risk.json           # Known client, GRANTED
@@ -560,6 +597,7 @@ scripts/                  # Offline maintenance scripts
   build_reference_dataset.py  # Frozen 10k stratified drift reference
   generate_drift_report.py    # Evidently prod-vs-reference report
   deploy_dashboard.py     # Pushes dashboard/ to the monitoring Space
+  build_demo_profiles.py  # Builds dashboard/static/demo_profiles.json
   smoke_test_model.py
   check_registry.py
   upload_data_to_hf.py    # One-shot upload of features_store.parquet to HF Dataset
@@ -577,6 +615,7 @@ models/                   # model.joblib + JSON metadata (committed to git)
 data/                     # features_store.parquet (gitignored — fetched from HF Dataset at runtime)
 .github/workflows/
   ci.yml                  # CI_CD — build_and_test + deploy
+  keep_alive.yml          # Daily restart of the API Space if it is not running
 .hf/
   README.md               # HF Space card — pushed as the Space's README.md by CI
   .gitattributes          # LFS rules for the Space — pushed as its .gitattributes
