@@ -75,7 +75,7 @@ synthetic artefacts:
 ## Tests and the database
 
 The CI pipeline creates and truncates a dedicated `predictions_log_test` table in
-the same Supabase instance as production. Those two steps are skipped when
+the same Neon database as production. Those two steps are skipped when
 `TEST_DATABASE_URL` is unset — which is the case on Dependabot PRs, since they do
 not receive repository secrets. See the
 [CI/CD Pipeline](../README.md#cicd-pipeline) section for the full job breakdown.

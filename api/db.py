@@ -1,7 +1,7 @@
 """Database engine + session factory for prediction logging.
 
 Single engine per process, instantiated lazily so the API can boot even when
-``DATABASE_URL`` is unset (local dev without Supabase). Use
+``DATABASE_URL`` is unset (local dev without a database). Use
 ``init_engine()`` from the FastAPI lifespan to validate connectivity at
 startup, and ``get_engine()`` from request handlers to grab the cached
 instance.
@@ -33,7 +33,7 @@ def init_engine(database_url: str | None = None) -> Engine | None:
     if not url:
         logger.warning(
             "DATABASE_URL not set — prediction logging disabled. "
-            "Set the env var to enable Supabase persistence."
+            "Set the env var to enable Postgres persistence."
         )
         return None
 

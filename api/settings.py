@@ -44,7 +44,7 @@ HF_DATASET_FILENAME = os.getenv("OC_P8_HF_DATASET_FILENAME", "features_store.par
 # threshold search if the model is retrained.
 DEFAULT_THRESHOLD = 0.33
 
-# Supabase / PostgreSQL connection. When unset, the prediction logger is
+# Neon / PostgreSQL connection. When unset, the prediction logger is
 # disabled gracefully (the API keeps serving, just without persistence).
 # The logger writes to PREDICTIONS_TABLE — overridable so integration tests
 # can target predictions_log_test via env without code changes.

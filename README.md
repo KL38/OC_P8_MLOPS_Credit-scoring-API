@@ -154,7 +154,7 @@ JSON {SK_ID_CURR + 120 raw application_train fields}
    {sk_id_curr, probability_default, decision,
     threshold, model_version, client_known}
                  ▼
-   Supabase log via BackgroundTask (deferred — does not
+   Neon log via BackgroundTask (deferred — does not
    block the HTTP response on the success path)
 ```
 
@@ -182,7 +182,7 @@ The local path (`data/features_store.parquet`) takes precedence — the HF downl
 
 ## Monitoring & Data Drift
 
-Every `/predict` call is logged to a Supabase PostgreSQL table (`predictions_log`),
+Every `/predict` call is logged to a Neon PostgreSQL table (`predictions_log`),
 and a Streamlit dashboard turns that table into production observability.
 
 **Live dashboard: [KLEB38/OC_P8_monitoring](https://huggingface.co/spaces/KLEB38/OC_P8_monitoring)**
@@ -205,16 +205,16 @@ and a Streamlit dashboard turns that table into production observability.
 
 The drift tab reads a static `dashboard/static/drift_report.html` committed to the
 repo, so it renders even when the database is unreachable. The other three query
-Supabase live.
+Neon live.
 
 ### Stack
 
 | Component | Purpose | Location |
 |-----------|---------|----------|
-| Supabase Postgres | Storage for prediction logs | `database/` |
+| Neon Postgres | Storage for prediction logs | `database/` |
 | `api/logger.py` | Deferred, best-effort insert — see [Deferred DB logging](#deferred-db-logging) | `api/` |
 | Evidently | Generates the feature-drift HTML report | `scripts/generate_drift_report.py` |
-| Streamlit dashboard | Reads Supabase + embeds the Evidently HTML | `dashboard/`, deployed at `KLEB38/OC_P8_monitoring` |
+| Streamlit dashboard | Reads Neon + embeds the Evidently HTML | `dashboard/`, deployed at `KLEB38/OC_P8_monitoring` |
 
 ### Schema (`predictions_log`)
 
@@ -267,20 +267,20 @@ uv run python scripts/deploy_dashboard.py
 ```
 
 `DATABASE_URL` must be set as a Space secret on `KLEB38/OC_P8_monitoring`.
-A read-only Supabase role is recommended.
+Use the read-only role (`SELECT` on `predictions_log` only), not the owner role.
 
 ---
 
 ## Latency Optimisation
 
 Profiling showed that a `/predict` call was dominated by two hotspots: synchronous
-Supabase logging on the request path, and a LightGBM single-row `predict_proba`
+database logging on the request path, and a LightGBM single-row `predict_proba`
 whose Python overhead dwarfed the actual tree traversal. Three independent
 changes, each landed as its own PR.
 
 ### Deferred DB logging
 
-The Supabase round-trip used to block the HTTP response. It now runs in a
+The database round-trip used to block the HTTP response. It now runs in a
 FastAPI `BackgroundTask` on the success path, so the client gets the
 `PredictionResponse` before the row is persisted. Failures still log
 **synchronously** — `BackgroundTasks` are attached to the route's Response,
@@ -380,7 +380,7 @@ A pull request therefore gets the full test suite but never deploys, and a manua
 3. **Install uv** pinned to `0.5.4` (`astral-sh/setup-uv@v8.1.0`)
 4. **Install dependencies** — `uv sync --frozen` (lockfile respected, no version drift)
 5. **Lint** — `ruff check api database feature_engineering tests`
-6. **Ensure the Supabase test table exists** — `database.setup --create-test`.
+6. **Ensure the Neon test table exists** — `database.setup --create-test`.
    Skipped when `TEST_DATABASE_URL` is absent, which is the case on Dependabot
    PRs since they do not receive repository secrets.
 7. **Run tests with coverage** — `pytest --cov=api --cov-fail-under=80`.
@@ -391,9 +391,10 @@ A pull request therefore gets the full test suite but never deploys, and a manua
 
 Any failing step blocks `deploy`.
 
-> **Note.** Steps 6 and 8 talk to the same Supabase instance as production
-> (different table). A free-tier database paused for inactivity will therefore
-> fail the pipeline on the next push to `main`.
+> **Note.** Steps 6 and 8 talk to the same Neon database as production
+> (different table). On the free tier Neon suspends the compute after 5 minutes
+> idle and resumes it on the next connection, so the first query of a run is a
+> little slower but no manual wake-up is needed.
 
 ### Job: `deploy`
 
@@ -421,8 +422,8 @@ Configure in **GitHub → Settings → Secrets and variables → Actions**:
 | Secret | Used by | Description |
 |--------|---------|-------------|
 | `HF_TOKEN` | `deploy` | Hugging Face write token ([settings/tokens](https://huggingface.co/settings/tokens)), used by `upload_folder()` |
-| `TEST_DATABASE_URL` | `build_and_test` | Supabase connection string for the **`predictions_log_test`** table |
-| `DATABASE_URL` | Dashboard Space runtime | Read-only Supabase string, set as a **Space secret** on `KLEB38/OC_P8_monitoring` — not in GitHub |
+| `TEST_DATABASE_URL` | `build_and_test` | Neon connection string for the **`predictions_log_test`** table |
+| `DATABASE_URL` | Dashboard Space runtime | Read-only Neon string, set as a **Space secret** on `KLEB38/OC_P8_monitoring` — not in GitHub |
 
 ---
 
@@ -529,7 +530,7 @@ api/                      # Runtime — bundled in Docker image
   inputs_transform.py     # Single-row app_train transform (one-hot fix)
   ratios.py               # 5 derived ratio formulas
   inference_assembler.py  # Branch known/unknown + reindex to 768 cols (optimised path)
-  logger.py               # Best-effort Supabase insert with per-step latencies
+  logger.py               # Best-effort Postgres insert with per-step latencies
   db.py                   # SQLAlchemy engine init/reset (lifespan-managed)
   settings.py             # Paths resolved from env vars with defaults
 
@@ -570,7 +571,7 @@ tests/
 docs/
   TESTING.md              # Full test strategy and per-test breakdown
 
-database/                 # Supabase schema setup (predictions_log + test table)
+database/                 # Postgres schema setup (predictions_log + test table)
 models/                   # model.joblib + JSON metadata (committed to git)
 data/                     # features_store.parquet (gitignored — fetched from HF Dataset at runtime)
 .github/workflows/
@@ -604,7 +605,7 @@ Internal project — MLOps coursework.
 ## Acknowledgments
 
 - [Home Credit Default Risk (Kaggle)](https://www.kaggle.com/c/home-credit-default-risk) — source of the training data
-- [LightGBM](https://lightgbm.readthedocs.io/) · [ONNX Runtime](https://onnxruntime.ai/) · [FastAPI](https://fastapi.tiangolo.com/) · [Evidently](https://www.evidentlyai.com/) · [Supabase](https://supabase.com/) · [Hugging Face Spaces](https://huggingface.co/spaces)
+- [LightGBM](https://lightgbm.readthedocs.io/) · [ONNX Runtime](https://onnxruntime.ai/) · [FastAPI](https://fastapi.tiangolo.com/) · [Evidently](https://www.evidentlyai.com/) · [Neon](https://neon.com/) · [Hugging Face Spaces](https://huggingface.co/spaces)
 - README structure inspired by [othneildrew/Best-README-Template](https://github.com/othneildrew/Best-README-Template)
 
 ---

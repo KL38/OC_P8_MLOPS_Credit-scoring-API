@@ -2,7 +2,7 @@
 
 Reads:
 - Reference: ``data/reference_dataset.parquet`` (training sample, frozen)
-- Current: last N production predictions from Supabase, ordered by most
+- Current: last N production predictions from Neon, ordered by most
   recent (ignores history beyond that window)
 
 The "last N" approach makes the pipeline replayable: re-run seed_traffic

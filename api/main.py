@@ -242,7 +242,7 @@ async def predict(
             status_code=status_code,
             error_message=error_message,
         )
-        # Success: defer the Supabase round-trip until AFTER the response
+        # Success: defer the DB round-trip until AFTER the response
         # is sent, so the client never waits on ~350 ms of DB log overhead.
         # Failure: log synchronously — BackgroundTasks scheduled on a route
         # are attached to its Response, and the exception-handler chain

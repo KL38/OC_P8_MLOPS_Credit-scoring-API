@@ -10,7 +10,7 @@ pinned: false
 
 # OC P8 — Monitoring Dashboard
 
-Streamlit dashboard for the Credit Scoring API. Reads logs from Supabase
+Streamlit dashboard for the Credit Scoring API. Reads logs from Neon
 (`predictions_log`) and an Evidently HTML report embedded in `static/`.
 
 ## Run locally

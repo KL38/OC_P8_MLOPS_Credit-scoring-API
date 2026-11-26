@@ -1,4 +1,4 @@
-"""Supabase / PostgreSQL layer for prediction logging.
+"""Neon / PostgreSQL layer for prediction logging.
 
 Two tables share the same schema (PredictionLog):
 - predictions_log: production logs, read by the monitoring dashboard

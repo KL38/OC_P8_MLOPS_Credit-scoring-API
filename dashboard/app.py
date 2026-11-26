@@ -6,7 +6,7 @@ Four tabs:
 - Business: GRANTED vs REFUSED, top-driver features
 - Advanced: output drift, critical features, weighted drift score
 
-Reads from Supabase (predictions_log) — never touches the test table.
+Reads from Neon (predictions_log) — never touches the test table.
 """
 
 from __future__ import annotations
@@ -48,17 +48,27 @@ st.caption("Prêt à Dépenser · prod observability + data drift")
 
 with st.sidebar:
     st.header("Filters")
-    hours = st.slider(
-        "Window (hours)",
-        min_value=1,
-        max_value=168,
-        value=168,
-        help="Time range for every metric. 24h = 1 day, 168h = 7 days.",
+    # Window label -> hours back from now (None = no lower bound). "All time"
+    # is the default: the demo receives sparse traffic, so a short window is
+    # usually empty.
+    windows = {
+        "Last 24 hours": 24,
+        "Last 7 days": 24 * 7,
+        "Last 30 days": 24 * 30,
+        "Last 90 days": 24 * 90,
+        "All time": None,
+    }
+    window_label = st.selectbox(
+        "Window",
+        list(windows),
+        index=len(windows) - 1,
+        help="Time range for every metric.",
     )
+    hours = windows[window_label]
     st.markdown("---")
     st.markdown(
         "**Sources**\n\n"
-        "- Logs: Supabase `predictions_log`\n"
+        "- Logs: Neon `predictions_log`\n"
         "- Drift: `static/drift_report.html`\n"
         "- Regenerate the report: `uv run python scripts/generate_drift_report.py`"
     )
@@ -377,7 +387,7 @@ with tab_ops:
         st.stop()
 
     if not summary["total"]:
-        st.warning(f"No prediction logged over the last {hours} hours.")
+        st.warning(f"No prediction logged in this window ({window_label.lower()}).")
         st.stop()
 
     # Headline: total server-side wall-clock = handler + DB log. The detail
@@ -463,7 +473,7 @@ with tab_ops:
         "the response is sent — it no longer affects the client (step 4).  \n"
         "The **handler** (`latency_ms`) covers assembly + inference + response "
         "building. The **DB log** (`db_log_ms`) is measured separately in "
-        "`api/logger.py` around the Supabase INSERT, and is still shown as a "
+        "`api/logger.py` around the Postgres INSERT, and is still shown as a "
         "server health metric. The **plumbing Δ** = `latency_ms - assembly - "
         "inference` isolates the Python residual between sub-measurements "
         "(variable init, return statement, entering the `finally`) — typically "
@@ -518,7 +528,7 @@ with tab_ops:
     cols_perf[5].metric(
         "DB log p50 / p95",
         f"{db_log_p50} / {db_log_p95} ms",
-        help="Supabase INSERT measured around `conn.execute(insert(...))` in `api/logger.py`. Usually dominates the total overhead.",
+        help="Postgres INSERT measured around `conn.execute(insert(...))` in `api/logger.py`. Usually dominates the total overhead.",
     )
     cols_perf[6].metric(
         "Plumbing Δ p50 / p95",
@@ -553,7 +563,7 @@ with tab_ops:
                 "feature_assembly_p50": "Feature assembly",
                 "inference_p50": "Model inference",
                 "plumbing_p50": "Python plumbing (residual)",
-                "db_log_p50": "DB log (Supabase INSERT)",
+                "db_log_p50": "DB log (Postgres INSERT)",
             }
         )
         fig_breakdown = px.area(

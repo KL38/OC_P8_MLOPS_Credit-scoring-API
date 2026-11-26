@@ -23,7 +23,7 @@ TEST_TABLE = "predictions_log_test"
 
 pytestmark = pytest.mark.skipif(
     not TEST_DATABASE_URL,
-    reason="TEST_DATABASE_URL not set; integration test against Supabase skipped.",
+    reason="TEST_DATABASE_URL not set; integration test against Postgres skipped.",
 )
 
 
@@ -102,7 +102,7 @@ def test_predict_inserts_row(client, valid_payload, test_engine):
         # small negative is possible — bound to a sane range.
         assert row.plumbing_ms is not None and -3 <= row.plumbing_ms < 10_000
         # db_log_ms is filled by the follow-up UPDATE after the INSERT.
-        # On a real Supabase row-trip this is typically 10-50 ms.
+        # On a real hosted Postgres round-trip this is typically 10-50 ms.
         assert row.db_log_ms is not None and 0 <= row.db_log_ms < 10_000
     finally:
         with test_engine.begin() as conn:

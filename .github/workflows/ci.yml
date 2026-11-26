@@ -35,7 +35,7 @@ jobs:
       - name: Lint (ruff)
         run: uv run ruff check api database feature_engineering tests
 
-      - name: Ensure test table exists in Supabase
+      - name: Ensure test table exists in Neon
         if: env.TEST_DATABASE_URL != ''
         env:
           TEST_DATABASE_URL: ${{ secrets.TEST_DATABASE_URL }}

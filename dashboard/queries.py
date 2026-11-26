@@ -1,4 +1,4 @@
-"""Supabase read-only helpers + static monitoring artefacts loaders.
+"""Postgres read-only helpers + static monitoring artefacts loaders.
 
 DB queries hit ``predictions_log`` (production data) and never touch the
 test table. Static artefacts (proba_reference, feature_importance,
@@ -49,11 +49,20 @@ def get_engine() -> Engine:
             "DATABASE_URL is not set. Configure it as a Space secret "
             "(read-only role recommended) or in database/.env for local dev."
         )
-    return create_engine(url, pool_size=2, max_overflow=2, pool_pre_ping=True, future=True)
+    return create_engine(
+        url, pool_size=2, max_overflow=2, pool_pre_ping=True, future=True
+    )
+
+
+def _since(hours: int | None) -> datetime:
+    """Lower bound of the time window; ``None`` means all time."""
+    if hours is None:
+        return datetime(1970, 1, 1, tzinfo=timezone.utc)
+    return datetime.now(tz=timezone.utc) - timedelta(hours=hours)
 
 
 @st.cache_data(ttl=60, show_spinner=False)
-def fetch_recent(hours: int) -> pd.DataFrame:
+def fetch_recent(hours: int | None) -> pd.DataFrame:
     """Wide DataFrame of recent rows (capped at ``RECENT_ROW_LIMIT``).
 
     JSONB ``features`` stays as a Python dict. The cap prevents large
@@ -61,7 +70,7 @@ def fetch_recent(hours: int) -> pd.DataFrame:
     Streamlit memory — Business / Operational tabs only consume the latest
     few hundred anyway.
     """
-    since = datetime.now(tz=timezone.utc) - timedelta(hours=hours)
+    since = _since(hours)
     sql = text(
         f"""
         SELECT timestamp, sk_id_curr, client_known, latency_ms, status_code,
@@ -79,7 +88,7 @@ def fetch_recent(hours: int) -> pd.DataFrame:
 
 
 @st.cache_data(ttl=60, show_spinner=False)
-def fetch_summary(hours: int) -> dict:
+def fetch_summary(hours: int | None) -> dict:
     """Aggregate KPIs computed in SQL to keep the dashboard responsive.
 
     Returns p50/p95 of total ``latency_ms`` plus the étape-4 breakdown
@@ -87,7 +96,7 @@ def fetch_summary(hours: int) -> dict:
     breakdown columns are NULL on legacy rows logged before the
     instrumentation was added — PERCENTILE_CONT ignores NULLs natively.
     """
-    since = datetime.now(tz=timezone.utc) - timedelta(hours=hours)
+    since = _since(hours)
     sql = text(
         f"""
         SELECT
@@ -123,8 +132,8 @@ def fetch_summary(hours: int) -> dict:
 
 
 @st.cache_data(ttl=60, show_spinner=False)
-def fetch_volume_by_hour(hours: int) -> pd.DataFrame:
-    since = datetime.now(tz=timezone.utc) - timedelta(hours=hours)
+def fetch_volume_by_hour(hours: int | None) -> pd.DataFrame:
+    since = _since(hours)
     sql = text(
         f"""
         SELECT date_trunc('hour', timestamp) AS hour,
@@ -143,7 +152,7 @@ def fetch_volume_by_hour(hours: int) -> pd.DataFrame:
 
 
 @st.cache_data(ttl=60, show_spinner=False)
-def fetch_latency_breakdown(hours: int) -> pd.DataFrame:
+def fetch_latency_breakdown(hours: int | None) -> pd.DataFrame:
     """Hourly p50 of each timing component (étape 4).
 
     Returns columns: hour, total_p50, feature_assembly_p50, inference_p50,
@@ -151,7 +160,7 @@ def fetch_latency_breakdown(hours: int) -> pd.DataFrame:
     skipped by PERCENTILE_CONT, so hours predating the instrumentation
     surface as NaN.
     """
-    since = datetime.now(tz=timezone.utc) - timedelta(hours=hours)
+    since = _since(hours)
     sql = text(
         f"""
         SELECT date_trunc('hour', timestamp) AS hour,

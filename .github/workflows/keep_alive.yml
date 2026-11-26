@@ -2,15 +2,19 @@ name: Keep HF Space Alive
 
 on:
   schedule:
-    - cron: "0 3 * * *"     # tous les jours à 6h00 UTC
+    - cron: "0 3 * * *"     # every day at 03:00 UTC
   workflow_dispatch:
+
+# The log commit below pushes with GITHUB_TOKEN, which is read-only by default.
+permissions:
+  contents: write
 
 jobs:
   keep-alive:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repo
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Check space status and restart if needed
         id: check

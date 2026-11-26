@@ -47,7 +47,7 @@ def main() -> int:
 
     # Profile the handler ONLY. Unset DATABASE_URL so the BackgroundTask
     # short-circuits — we want to see what the client actually waits on
-    # post-migration, not the deferred Supabase round-trip.
+    # post-migration, not the deferred DB round-trip.
     os.environ.pop("DATABASE_URL", None)
 
     # Build payloads with the same logic used by seed_traffic — real rows
