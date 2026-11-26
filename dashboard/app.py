@@ -13,6 +13,8 @@ from __future__ import annotations
 
 import logging
 import os
+import random
+import time
 from pathlib import Path
 
 import numpy as np
@@ -23,6 +25,7 @@ import streamlit as st
 from huggingface_hub import HfApi
 from scipy import stats as scipy_stats
 
+from demo import call_predict, load_profiles, random_client
 from queries import (
     fetch_latency_breakdown,
     fetch_proba_distribution,
@@ -44,6 +47,35 @@ API_SPACE = "KLEB38/OC_P8"
 # state: nobody must be able to bounce an API that is up or booting.
 # SLEEPING is not in huggingface_hub's SpaceStage enum, hence plain strings.
 WAKEABLE_STAGES = {"SLEEPING", "PAUSED", "STOPPED", "RUNTIME_ERROR"}
+
+# "Try the API" buttons: label -> profile key in demo_profiles.json, or
+# "random" for a generated client. The per-session cooldown keeps a public
+# page from flooding the log table.
+DEMO_BUTTONS = {
+    "Low-risk profile": "low_risk",
+    "High-risk profile": "high_risk",
+    "Random client": "random",
+}
+DEMO_COOLDOWN_S = 10
+
+
+@st.cache_resource(show_spinner=False)
+def load_demo_profiles() -> dict:
+    return load_profiles()
+
+
+def _demo_cooldown_left() -> float:
+    return DEMO_COOLDOWN_S - (time.time() - st.session_state.get("demo_last_call", 0))
+
+
+def _queue_demo_call(label: str) -> None:
+    """Button callback: enforces the per-session cooldown server-side."""
+    left = _demo_cooldown_left()
+    if left > 0:
+        st.session_state["demo_throttled"] = int(left) + 1
+        return
+    st.session_state["demo_pending"] = label
+    st.session_state["demo_last_call"] = time.time()
 
 
 def _api_stage() -> str:
@@ -98,6 +130,58 @@ with st.sidebar:
             except Exception:
                 logger.exception("restart_space failed")
                 st.error("Wake-up failed. The Space logs have the details.")
+
+    st.subheader("Try the API")
+    st.caption(
+        "Send a real `/predict` call: it is logged to Neon and shows up in "
+        "the tabs on the right."
+    )
+    api_up = api_stage == "RUNNING"
+    # Buttons stay enabled during the cooldown (Streamlit would not redraw
+    # them when it ends): the callback rejects early clicks instead.
+    for label in DEMO_BUTTONS:
+        st.button(
+            label,
+            on_click=_queue_demo_call,
+            args=(label,),
+            disabled=not api_up,
+            help=None if api_up else "The API is not running: wake it up first.",
+        )
+    throttled = st.session_state.pop("demo_throttled", None)
+    if throttled:
+        st.caption(f"Please wait: next call available in {throttled} s.")
+
+    demo_choice = st.session_state.pop("demo_pending", None)
+    if demo_choice:
+        profiles = load_demo_profiles()
+        payload = (
+            random_client(profiles, random.Random())
+            if DEMO_BUTTONS[demo_choice] == "random"
+            else profiles[DEMO_BUTTONS[demo_choice]]
+        )
+        try:
+            st.session_state["demo_result"] = (demo_choice, call_predict(payload))
+            # The API logs in a background task after answering: give the
+            # INSERT a moment, then drop cached queries so this run shows it.
+            time.sleep(2)
+            st.cache_data.clear()
+        except Exception:
+            logger.exception("Demo /predict call failed")
+            st.session_state["demo_result"] = (demo_choice, None)
+
+    if "demo_result" in st.session_state:
+        label, result = st.session_state["demo_result"]
+        if result is None:
+            st.error(f"{label}: call failed. The API may be starting up.")
+        else:
+            st.markdown(
+                f"**{label}** → **{result['decision']}**  \n"
+                f"Client `{result['sk_id_curr']}`"
+                f" ({'known' if result['client_known'] else 'unknown'})  \n"
+                f"P(default) = {result['probability_default']:.3f}"
+                f" (threshold {result['threshold']:.2f})  \n"
+                f"Round trip: {result['round_trip_ms']} ms"
+            )
     st.markdown("---")
     st.markdown(
         "**Sources**\n\n"

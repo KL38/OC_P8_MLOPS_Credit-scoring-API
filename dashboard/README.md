@@ -41,6 +41,19 @@ secrets → New secret).
 button, which any visitor can press when the API Space is asleep. Use a
 fine-grained token with write access to `KLEB38/OC_P8` only.
 
+## Try the API from the dashboard
+
+The sidebar's *Try the API* buttons send a real `/predict` call (low-risk
+profile, high-risk profile, or a random client) so visitors can watch it land
+in the tabs. One call per 10 s per session. Payloads come from
+`static/demo_profiles.json`: the two curated profiles from `examples/` plus
+200 known `SK_ID_CURR`. No raw application row is exported; the random client
+reuses a curated profile and re-draws its main drivers (`demo.py`).
+
+```powershell
+uv run python scripts/build_demo_profiles.py   # rebuild the artefact
+```
+
 ## Regenerate the drift report
 
 ```powershell
