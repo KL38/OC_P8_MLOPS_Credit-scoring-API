@@ -37,6 +37,10 @@ uv run python scripts/deploy_dashboard.py
 `DATABASE_URL` must be added as a Space secret (Settings → Variables and
 secrets → New secret).
 
+`HF_RESTART_TOKEN` (optional Space secret) powers the sidebar's *Wake up the API*
+button, which any visitor can press when the API Space is asleep. Use a
+fine-grained token with write access to `KLEB38/OC_P8` only.
+
 ## Regenerate the drift report
 
 ```powershell

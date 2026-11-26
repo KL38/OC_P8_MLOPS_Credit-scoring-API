@@ -424,6 +424,7 @@ Configure in **GitHub → Settings → Secrets and variables → Actions**:
 | `HF_TOKEN` | `deploy` | Hugging Face write token ([settings/tokens](https://huggingface.co/settings/tokens)), used by `upload_folder()` |
 | `TEST_DATABASE_URL` | `build_and_test` | Neon connection string for the **`predictions_log_test`** table |
 | `DATABASE_URL` | Dashboard Space runtime | Read-only Neon string, set as a **Space secret** on `KLEB38/OC_P8_monitoring` — not in GitHub |
+| `HF_RESTART_TOKEN` | Dashboard Space runtime | Optional **Space secret** on `KLEB38/OC_P8_monitoring` for the public *Wake up the API* button. Fine-grained token, write access to `KLEB38/OC_P8` only |
 
 ---
 

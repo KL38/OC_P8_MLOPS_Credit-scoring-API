@@ -12,6 +12,7 @@ Reads from Neon (predictions_log) — never touches the test table.
 from __future__ import annotations
 
 import logging
+import os
 from pathlib import Path
 
 import numpy as np
@@ -19,6 +20,7 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 import streamlit as st
+from huggingface_hub import HfApi
 from scipy import stats as scipy_stats
 
 from queries import (
@@ -36,6 +38,23 @@ from queries import (
 logger = logging.getLogger(__name__)
 
 DRIFT_REPORT_PATH = Path(__file__).parent / "static" / "drift_report.html"
+
+API_SPACE = "KLEB38/OC_P8"
+# Any visitor can press the wake-up button, so restart only from a stopped
+# state: nobody must be able to bounce an API that is up or booting.
+# SLEEPING is not in huggingface_hub's SpaceStage enum, hence plain strings.
+WAKEABLE_STAGES = {"SLEEPING", "PAUSED", "STOPPED", "RUNTIME_ERROR"}
+
+
+def _api_stage() -> str:
+    """Public runtime stage of the API Space (no token needed to read it)."""
+    try:
+        stage = HfApi().get_space_runtime(API_SPACE, token=False).stage
+    except Exception:
+        logger.exception("Could not read the API Space status")
+        return "UNKNOWN"
+    return str(getattr(stage, "value", stage))
+
 
 st.set_page_config(
     page_title="OC P8 Monitoring",
@@ -65,6 +84,20 @@ with st.sidebar:
         help="Time range for every metric.",
     )
     hours = windows[window_label]
+    st.markdown("---")
+    st.header("Scoring API")
+    api_stage = _api_stage()
+    st.caption(f"Space `{API_SPACE}`: **{api_stage}**")
+    if api_stage in WAKEABLE_STAGES:
+        if st.button("Wake up the API"):
+            try:
+                # HF_RESTART_TOKEN: fine-grained token, write access to the
+                # API Space only, stored as a secret of this Space.
+                HfApi(token=os.getenv("HF_RESTART_TOKEN")).restart_space(API_SPACE)
+                st.success("Restart requested: the API needs a few minutes to boot.")
+            except Exception:
+                logger.exception("restart_space failed")
+                st.error("Wake-up failed. The Space logs have the details.")
     st.markdown("---")
     st.markdown(
         "**Sources**\n\n"

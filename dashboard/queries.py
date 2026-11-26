@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
@@ -49,6 +50,9 @@ def get_engine() -> Engine:
             "DATABASE_URL is not set. Configure it as a Space secret "
             "(read-only role recommended) or in database/.env for local dev."
         )
+    # Name the driver explicitly: since SQLAlchemy 2.1 a bare postgresql:// URL
+    # resolves to psycopg (v3), but this image only ships psycopg2.
+    url = re.sub(r"^postgres(ql)?://", "postgresql+psycopg2://", url)
     return create_engine(
         url, pool_size=2, max_overflow=2, pool_pre_ping=True, future=True
     )
